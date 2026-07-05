@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仿 Codex 智能任务编排引擎</title>
+    <!-- 引入 Tailwind CSS 让界面瞬间变美 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Marked.js 用来渲染 Markdown (让代码块变得易读) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* 针对 Markdown 渲染后的一些基础排版优化 */
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
+        .markdown-body h1 { font-size: 1.5rem; }
+        .markdown-body h2 { font-size: 1.25rem; }
+        .markdown-body p { margin-bottom: 1em; line-height: 1.6; }
+        .markdown-body pre { background-color: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1em; }
+        .markdown-body code { font-family: monospace; background-color: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 0.25rem; color: #ef4444; }
+        .markdown-body pre code { background-color: transparent; color: inherit; padding: 0; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle;}
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans">
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                🚀 仿 Codex 编排引擎
+            </h1>
+            <!-- 🌟 模式切换下拉框 -->
+            <div class="flex items-center gap-2">
+                <label for="mode" class="text-sm font-medium text-gray-600">当前模式:</label>
+                <select id="mode" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none cursor-pointer transition-all">
+                    <option value="default">⚙️ 默认 Codex 模式 (拆解执行)</option>
+                    <option value="openclaw" selected>🦞 小龙虾管家模式 (极速工具流)</option>
+                    <option value="hermes">💼 爱马仕模式 (深度思考高定)</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 左侧控制面板区 -->
+        <div class="lg:col-span-1 space-y-4">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4">输入需求</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">你想做什么？</label>
+                    <textarea id="requirement" rows="4" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none" placeholder="例如：帮我分析一下上传的这份代码，或者在本地帮我跑一个脚本..."></textarea>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">附加上下文 (可选)</label>
+                    <textarea id="context" rows="2" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none text-sm" placeholder="例如：这个代码是运行在 Python 3.10 环境下的..."></textarea>
+                </div>
+
+                <!-- 🌟 附件上传区 -->
+                <div class="mb-4 border-t pt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📎 添加附件 (代码文件 / 图片)</label>
+                    <input type="file" id="file-upload" multiple class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-50 file:text-blue-700
+                        hover:file:bg-blue-100 cursor-pointer
+                    "/>
+                    <!-- 可以用来展示已选文件的名字 -->
+                    <div id="file-list" class="mt-2 flex flex-wrap gap-2 text-xs text-gray-600"></div>
+                </div>
+
+                <button id="execute-btn" onclick="executeTask()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex justify-center items-center gap-2">
+                    <span>开始执行</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 右侧结果展示区 -->
+        <div class="lg:col-span-2 space-y-4">
+            
+            <!-- 状态与过程面板 -->
+            <div id="process-panel" class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 hidden">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-lg font-semibold">执行过程</h2>
+                    <span id="task-status" class="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">运行中...</span>
+                </div>
+                <div id="complexity-info" class="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <!-- 动态注入复杂度信息 -->
+                </div>
+                <div id="dag-info" class="space-y-2">
+                    <!-- 动态注入 DAG 任务列表 -->
+                </div>
+            </div>
+
+            <!-- 最终结果面板 -->
+            <div id="result-panel" class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 hidden">
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-green-600">最终输出结果</h2>
+                <!-- Markdown 渲染容器 -->
+                <div id="final-output" class="markdown-body">
+                    <!-- 动态注入大模型输出 -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // 🌟 将文件转成 Base64 编码的辅助函数
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]); // 只取 base64 数据部分，去掉前缀
+            reader.onerror = error => reject(error);
+        });
+
+        // 监听文件选择变化，展示文件名
+        document.getElementById('file-upload').addEventListener('change', function(e) {
+            const fileList = document.getElementById('file-list');
+            fileList.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                fileList.innerHTML += `<span class="bg-gray-100 px-2 py-1 rounded">${file.name}</span>`;
+            });
+        });
+
+        async function executeTask() {
+            const requirement = document.getElementById('requirement').value;
+            const context = document.getElementById('context').value;
+            const mode = document.getElementById('mode').value;
+            const fileInput = document.getElementById('file-upload');
+            const btn = document.getElementById('execute-btn');
+            
+            const processPanel = document.getElementById('process-panel');
+            const resultPanel = document.getElementById('result-panel');
+            const statusBadge = document.getElementById('task-status');
+            const finalOutput = document.getElementById('final-output');
+
+            if (!requirement.trim()) {
+                alert("需求不能为空哦！");
+                return;
+            }
+
+            // 重置 UI 状态
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> 执行中...';
+            processPanel.classList.remove('hidden');
+            resultPanel.classList.add('hidden');
+            statusBadge.className = 'px-3 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800';
+            statusBadge.innerText = '分析与执行中...';
+            
+            document.getElementById('complexity-info').innerHTML = `正在评估任务复杂度...`;
+            document.getElementById('dag-info').innerHTML = ``;
+
+            try {
+                // 🌟 并发处理所有上传的文件
+                let processedFiles = [];
+                if (fileInput.files.length > 0) {
+                    for (let file of fileInput.files) {
+                        const base64Data = await toBase64(file);
+                        processedFiles.push({
+                            filename: file.name,
+                            mime_type: file.type || 'text/plain', // 兜底类型
+                            data: base64Data
+                        });
+                    }
+                }
+
+                // 🚀 发送请求给你的后端接口，包含 requirement, context, mode 和 files
+                const response = await fetch('/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        requirement: requirement, 
+                        context: context, 
+                        mode: mode,
+                        files: processedFiles 
+                    })
+                });
+
+                const data = await response.json();
+
+                // 🌟 严格检查执行状态，防止前端假死
+                if (response.ok && data.status === "completed") {
+                    statusBadge.className = 'px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800';
+                    statusBadge.innerText = '执行完成';
+
+                    // 渲染复杂度判断理由
+                    let complexityHtml = `<strong>无法获取评估信息</strong>`;
+                    if (data.complexity) {
+                        complexityHtml = `
+                            <strong>系统判断：</strong> ${data.complexity.reasoning || "无"} <br>
+                            <strong>级别：</strong> <span class="uppercase font-bold text-gray-800">${data.complexity.level}</span> | 
+                            <strong>预估步数：</strong> ${data.complexity.estimated_subtasks} 步
+                        `;
+                    }
+                    document.getElementById('complexity-info').innerHTML = complexityHtml;
+
+                    // 渲染 DAG 子任务列表
+                    let dagHtml = `<h3 class="font-medium text-sm text-gray-700 mb-2">子任务拆解：</h3>`;
+                    if (data.dag && data.dag.tasks) {
+                        data.dag.tasks.forEach(task => {
+                            let icon = task.status === 'completed' ? '✅' : '❌';
+                            let modelName = task.assigned_model ? `(${task.assigned_model})` : "";
+                            dagHtml += `<div class="p-2 bg-gray-50 rounded border border-gray-200 text-sm mb-1">
+                                            ${icon} [Task ${task.id}] ${task.description} 
+                                            <span class="text-xs text-gray-400 ml-2">${modelName}</span>
+                                        </div>`;
+                        });
+                    }
+                    document.getElementById('dag-info').innerHTML = dagHtml;
+
+                    // 渲染最终结果（使用 marked 渲染 Markdown）
+                    resultPanel.classList.remove('hidden');
+                    if (data.result && data.result.final_output) {
+                        finalOutput.innerHTML = marked.parse(data.result.final_output);
+                    } else {
+                        finalOutput.innerHTML = "<div class='text-gray-500'>无有效输出结果。</div>";
+                    }
+                } else {
+                    // 如果不是 completed 或者 response.ok 是 false，抛出错误给 catch 捕获
+                    let errorMsg = data.error || data.detail || "后端大模型执行失败或任务未完成";
+                    throw new Error(errorMsg);
+                }
+            } catch (error) {
+                // 🌟 统一的错误处理 UI
+                statusBadge.className = 'px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800';
+                statusBadge.innerText = '执行出错';
+                resultPanel.classList.remove('hidden');
+                finalOutput.innerHTML = `<div class="text-red-500 font-medium">❌ 错误信息: <br> ${error.message}</div>`;
+            } finally {
+                // 无论成功还是失败，恢复执行按钮状态
+                btn.disabled = false;
+                btn.innerHTML = '<span>重新执行</span>';
+            }
+        }
+    </script>
+</body>
+</html>

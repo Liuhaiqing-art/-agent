@@ -1,0 +1,74 @@
+# Codex Clone Configuration
+# Set API keys via environment variables before starting the server.
+#
+# Examples:
+#   export DEEPSEEK_API_KEY=sk-xxx
+#   export QWEN_API_KEY=sk-xxx
+#   export WENXIN_API_KEY=xxx
+#   export ZHIPU_API_KEY=xxx
+
+models:
+  - name: deepseek-chat
+    provider: deepseek
+    endpoint: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    capabilities: [code, reasoning, fast]
+    cost_per_1k_tokens: 0.002
+    max_tokens: 8192
+
+  - name: deepseek-reasoner
+    provider: deepseek
+    endpoint: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    capabilities: [code, reasoning, analysis]
+    cost_per_1k_tokens: 0.004
+    max_tokens: 65536
+
+  - name: qwen-max
+    provider: qwen
+    endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key_env: QWEN_API_KEY
+    capabilities: [code, reasoning, analysis]
+    cost_per_1k_tokens: 0.004
+    max_tokens: 32768
+
+  - name: qwen-vl-max
+    provider: qwen
+    endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key_env: QWEN_API_KEY
+    capabilities: [code, reasoning, vision]  
+    cost_per_1k_tokens: 0.008
+    max_tokens: 32768
+
+  - name: qwen-plus
+    provider: qwen
+    endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key_env: QWEN_API_KEY
+    capabilities: [code, fast]
+    cost_per_1k_tokens: 0.002
+    max_tokens: 131072
+
+  - name: glm-4
+    provider: zhipu
+    endpoint: https://open.bigmodel.cn/api/paas/v4
+    api_key_env: ZHIPU_API_KEY
+    capabilities: [code, reasoning, analysis]
+    cost_per_1k_tokens: 0.01
+    max_tokens: 128000
+
+  - name: ernie-4.0
+    provider: baidu
+    endpoint: https://qianfan.baidubce.com/v2
+    api_key_env: WENXIN_API_KEY
+    capabilities: [code, reasoning]
+    cost_per_1k_tokens: 0.02
+    max_tokens: 8192
+
+routing:
+  analyzer_model: deepseek-chat       # cheap/fast model for complexity analysis
+  decomposer_model: deepseek-chat      # capable model for task decomposition
+  default_executor: deepseek-chat
+  parallel_threshold: 3               # enable parallel when >= 3 independent subtasks
+  redundancy_on_critical: false        # set to true to run critical tasks on 2 models
+  max_retries: 3
+  timeout_seconds: 300
